@@ -72,9 +72,9 @@ private:
    * In particular, you may want a function to find the largest company
    * that a student i is part of.
    */
-  Company* largestParent(int i);
+  Company* largestParent(int i);  //Helper function to get largest company
   bool sameCompany(Company* sub1, Company* sub2);
-  std::vector<Company*> mergers;
+  std::vector<Company*> mergers;  //Will store new companies created
 };
 
 #endif
