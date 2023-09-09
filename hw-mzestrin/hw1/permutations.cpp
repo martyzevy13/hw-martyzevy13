@@ -30,10 +30,3 @@ void helper(string s, string curr, vector<int>& used)
         }
     }
 }
-
-int main(){
-    permutations("USC");
-    return 0;
-}
-
-
