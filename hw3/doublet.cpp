@@ -4,14 +4,35 @@
 #include <string>
 #include <map> 
 #include <set>
+#include <utility>
 
 using namespace std;
 
+struct Node{
+    Node(string word, Node* next){
+        this->word = word;
+        this->next = next;
+    }
+    Node(){
+        word = "";
+        next = nullptr;
+    }
+    bool operator<(const Node& rhs){
+        return word < rhs.word;
+    }
+    string word;
+    Node* next;
+};
+
+struct LinkedList{
+    Node* head;
+    //Node* tail;
+};
+
 //Function prototypes
-set<string> getWords(istream& infile, unsigned int size);
+void getWords(istream& infile, int size, set<string>& wordList, string start, string end);
 int getHeuristic(string word1, string word2);
-map<string, set<string>> buildGraph(set<string>& data);
-void graphSearch(map<string, set<string>>& graph, string start, string end);
+void graphSearch(Node** graph, set<string>& dictionary, string start, string end, unsigned int numWords);
 
 int main(int argc, char* argv[]){
     ifstream file(argv[3]);
@@ -22,31 +43,57 @@ int main(int argc, char* argv[]){
     for (unsigned int i = 0; i < startWord.size(); i++) startWord[i] = toupper(startWord[i]);
     for (unsigned int i = 0; i < endWord.size(); i++) endWord[i] = toupper(endWord[i]);
 
-    set<string> wordBank = getWords(file, startWord.size());    
-    map<string, set<string>> graph = buildGraph(wordBank);
-
-    //A* Search
-    graphSearch(graph, startWord, endWord);
+    //set<string> wordBank = getWords(file, startWord.size());    
+    int numWords;
+    file >> numWords;
+    set<string> wb;
+    getWords(file, numWords, wb, startWord, endWord);
 
     return 0;
 }
 
-set<string> getWords(istream& infile, unsigned int size){
-    int numWords;
-    infile >> numWords;
-    set<string> wordList;
-    for (int i = 0; i < numWords; i++){
+void getWords(istream& infile, int size, set<string>& wordList, string start, string end){
+    //int numWords;
+    //infile >> numWords;
+    Node* graph[size];
+
+    //set<string> wordList;
+    for (int i = 0; i < size; i++){
         string currWord; 
         infile >> currWord;
-        if (currWord.size() != size) continue;  //Words that have different length than start/end work are inapplicable
+        //if (currWord.size() != size) continue;  //Words that have different length than start/end work are inapplicable
 
         //Make everything upper-case so that < operator will work appropriately
         for (unsigned int j = 0; j < currWord.size(); j++){
             currWord[j] = toupper(currWord[j]);
         }   
         wordList.insert(currWord);
+        Node* curr = new Node(currWord, nullptr);
+        //LinkedList* list = new LinkedList;
+        //list->head = curr;
+        //list->tail = curr;
+        //list->head->next = list->tail;
+        graph[i] = curr;
     }
-    return wordList;
+    //return wordList;
+    for (int i = 0; i < size; i++){
+        Node* curr = graph[i];    
+        string currWord = curr->word;
+        for (unsigned int j = 0; j < currWord.size(); j++){
+            for (int k = 65; k <= 90; k++){
+                string neighbor = currWord;
+                neighbor[j] = static_cast<char>(k);
+                if (neighbor != currWord && wordList.find(neighbor) != wordList.end()){
+                    Node* newNode = new Node(neighbor, nullptr);
+                    curr->next = newNode;
+                    curr = newNode;
+                }
+            }
+        }
+        //graph[i]->tail = curr;
+    }
+    //buildGraph(wordList, graph, size);
+    graphSearch(graph, wordList, start, end, size);
 }
 
 int getHeuristic(string word1, string word2){
@@ -57,39 +104,28 @@ int getHeuristic(string word1, string word2){
     return h;
 }
 
-map<string, set<string>> buildGraph(set<string>& data){
-    map<string, set<string>> graph;
-    for (auto it = data.begin(); it != data.end(); ++it){
-        set<string> neighbors;
-        //For every letter of the word, try replacing it with every uppercase English letter
-        for (unsigned int i = 0; i < (*it).size(); i++){
-            string currWord = *it;
-            for (int j = 65; j <= 90; j++){
-                currWord[i] = static_cast<char>(j);
-                //Make sure the modified word is in the word bank and is not the same as the original word
-                if (currWord != *it && data.find(currWord) != data.end()){
-                    neighbors.insert(currWord);
-                }
-            }
-        }
-        graph[*it] = neighbors;
-    }
-    return graph;
-}
-
-void graphSearch(map<string, set<string>>& graph, string start, string end){
-    MinHeap<string> heap(2);
+void graphSearch(Node** graph, set<string>& dictionary, string start, string end, unsigned int numWords){
+    MinHeap<Node> heap(2);
     set<string> removed;
     map<string, int> g; //Stores the number of moves since the start state
     map<string, int> p; //Stores the priority of a node in the heap
 
+    int startIdx;
+    for (unsigned int i = 0; i < numWords; i++){
+        if (graph[i]->word == start){
+            startIdx = i;
+            break;
+        }
+    }
+    
     p[start] = getHeuristic(start, end) * (start.size() + 1) + getHeuristic(start, end);
-    heap.add(start, p[start]);
+    heap.add(*graph[startIdx], p[start]);
     g[start] = 0;
     int expansions = 0;
 
-    while (!heap.isEmpty()){
-        string curr = heap.peek();
+     while (!heap.isEmpty()){
+        string curr = heap.peek().word;
+       
         if (curr == end){
             cout << g[curr] << endl << expansions << endl;
             return;
@@ -99,26 +135,33 @@ void graphSearch(map<string, set<string>>& graph, string start, string end){
         to check the node removed from the heap has not already been removed*/
         while (removed.find(curr) != removed.end() && !heap.isEmpty()){
             heap.remove();
-            if (!heap.isEmpty()) curr = heap.peek();
+            if (!heap.isEmpty()) curr = heap.peek().word;
         }
         if (heap.isEmpty()){
             cout << "No transformation" << endl << expansions << endl;
             return;
         } 
+        Node* n = heap.peek().next;
+        //cout << heap.peek()->word << endl;
         heap.remove();
         removed.insert(curr);
         expansions++;
 
         //Iterate through all words within one letter of the current word
-        for (auto it = graph[curr].begin(); it != graph[curr].end(); ++it){
-            int priority = (start.size() + 1) * (g[curr] + 1 + getHeuristic(*it, end)) + getHeuristic(*it, end);
+        
+        while (n != nullptr) {
+            
+            int priority = (start.size() + 1) * (g[curr] + 1 + getHeuristic(n->word, end)) + getHeuristic(n->word, end);
             //Make sure word is undiscovered, or a shorter path to the word has been discovered
-            if (g.find(*it) == g.end() || p[*it] > priority){
-                heap.add(*it, priority);
-                g[*it] = g[curr] + 1; 
-                p[*it] = priority;
+            if (g.find(n->word) == g.end() || p[n->word] > priority){
+                heap.add(*n, priority);
+                g[n->word] = g[curr] + 1; 
+                p[n->word] = priority;
             }
+            n = n->next;
         }
     }
     cout << "No transformation" << endl << expansions << endl;
+
 }
+
